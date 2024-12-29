@@ -1,7 +1,13 @@
 # 导入必要的库
-import pandas as pd  # 用于数据处理
-import numpy as np  # 用于数值计算
-from scipy.stats import norm  # 用于统计分布
+import pandas as pd  # 数据处理库
+import numpy as np  # 数值计算库
+import matplotlib.pyplot as plt  # 绘图库
+from scipy.stats import norm  # 统计分布库
+from mpl_toolkits.mplot3d import Axes3D  # 3D绘图工具
+
+# 设置matplotlib绘图时可以显示中文
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 设置字体为黑体
+plt.rcParams['axes.unicode_minus'] = False  # 使得坐标轴负号显示正常
 
 # 定义表 1 中的情况数据
 data = {
@@ -19,12 +25,12 @@ data = {
     '拆解费用': [5, 5, 5, 5, 5, 40]  # 拆解费用
 }
 
-# 转换为DataFrame格式
-df = pd.DataFrame(data)  # 将数据转换为Pandas DataFrame格式，便于后续处理
+# 转换为 DataFrame 格式
+df = pd.DataFrame(data)
 
 # 设定终止条件
-MAX_CYCLES = 10  # 最多循环10次
-EPSILON = 0.015  # 次品率阈值为1.5%
+MAX_CYCLES = 10  # 最多循环 10 次
+EPSILON = 0.015  # 次品率阈值为 1.5 %
 
 # 模型中的次品率下降比例
 ALPHA_1 = 0.65  # 零配件1次品率递减比例
@@ -48,11 +54,11 @@ def estimate_defect_rate(p_estimate, confidence_level, error_margin=ERROR_MARGIN
 def decision_analysis(row, confidence_scenario=95):
     # 选择不同的置信水平
     if confidence_scenario == 95:
-        confidence_level = 0.95  # 设定置信水平为95%
-        z_value = Z_ALPHA_95  # 使用95%置信度的Z值
+        confidence_level = 0.95
+        z_value = Z_ALPHA_95
     elif confidence_scenario == 90:
-        confidence_level = 0.90  # 设定置信水平为90%
-        z_value = Z_ALPHA_90  # 使用90%置信度的Z值
+        confidence_level = 0.90
+        z_value = Z_ALPHA_90
 
     # 初始变量，通过抽样检测估计次品率
     p1_defect_rate = estimate_defect_rate(row['零配件1次品率'], confidence_level)  # 零配件1的次品率
@@ -82,9 +88,9 @@ def decision_analysis(row, confidence_scenario=95):
 
     # 存储每次循环的次品率
     defect_rate_history = {
-        '零配件1次品率': [],  # 存储零配件1的次品率历史
-        '零配件2次品率': [],  # 存储零配件2的次品率历史
-        '成品次品率': []  # 存储成品的次品率历史
+        '零配件1次品率': [],
+        '零配件2次品率': [],
+        '成品次品率': []
     }
 
     # 开始循环，直到满足终止条件
@@ -143,47 +149,59 @@ def decision_analysis(row, confidence_scenario=95):
 
 # 对每种情况执行决策分析
 # 使用95%置信度的结果
-decisions_95 = df.apply(decision_analysis, axis=1, confidence_scenario=95)  # 应用决策分析函数
+decisions_95 = df.apply(decision_analysis, axis=1, confidence_scenario=95)  # 95%置信度下的决策分析
 # 使用90%置信度的结果
-decisions_90 = df.apply(decision_analysis, axis=1, confidence_scenario=90)  # 应用决策分析函数
+decisions_90 = df.apply(decision_analysis, axis=1, confidence_scenario=90)  # 90%置信度下的决策分析
 
-# 将决策结果转换为DataFrame格式
-decision_results_95 = pd.DataFrame(decisions_95.tolist())  # 将95%置信度的结果转换为DataFrame
-decision_results_90 = pd.DataFrame(decisions_90.tolist())  # 将90%置信度的结果转换为DataFrame
+# 将决策结果转换为 DataFrame 格式
+decision_results_95 = pd.DataFrame(decisions_95.tolist())  # 95%置信度下的决策结果
+decision_results_90 = pd.DataFrame(decisions_90.tolist())  # 90%置信度下的决策结果
 
-# 显示95%置信度结果
-print("\n95%置信度下的决策分析结果：")
-print(decision_results_95[['检测零配件1', '检测零配件2', '检测成品', '拆解', '总成本', '循环次数']])  # 打印95%置信度的决策结果
+# 收集所有次品率历史并进行3D绘制
+def collect_defect_rate_histories(decision_results):
+    defect_rate_histories = []  # 初始化次品率历史列表
+    for _, row in decision_results.iterrows():  # 遍历每一行决策结果
+        defect_rate_history = {
+            '零配件1次品率': row['零配件1次品率历史'],  # 获取零配件1的次品率历史
+            '零配件2次品率': row['零配件2次品率历史'],  # 获取零配件2的次品率历史
+            '成品次品率': row['成品次品率历史']  # 获取成品的次品率历史
+        }
+        defect_rate_histories.append(defect_rate_history)  # 将次品率历史添加到列表中
+    return defect_rate_histories  # 返回次品率历史列表
 
-# 显示90%置信度结果
-print("\n90%置信度下的决策分析结果：")
-print(decision_results_90[['检测零配件1', '检测零配件2', '检测成品', '拆解', '总成本', '循环次数']])  # 打印90%置信度的决策结果
+# 3D 可视化函数
+def plot_defect_rate_3d(defect_rate_histories, title):
+    fig = plt.figure(figsize=(12, 8))  # 创建图形
+    ax = fig.add_subplot(111, projection='3d')  # 添加3D坐标轴
 
-# 提取每种情况的次品率历史，并以表格形式输出
-defect_rate_results_95 = pd.DataFrame({
-    '零配件1次品率历史': decision_results_95['零配件1次品率历史'],  # 零配件1的次品率历史
-    '零配件2次品率历史': decision_results_95['零配件2次品率历史'],  # 零配件2的次品率历史
-    '成品次品率历史': decision_results_95['成品次品率历史']  # 成品的次品率历史
-})
+    # 定义颜色和标签
+    labels = ['零配件1次品率', '零配件2次品率', '成品次品率']  # 次品率标签
+    colors = ['r', 'g', 'b']  # 对应的颜色
 
-defect_rate_results_90 = pd.DataFrame({
-    '零配件1次品率历史': decision_results_90['零配件1次品率历史'],  # 零配件1的次品率历史
-    '零配件2次品率历史': decision_results_90['零配件2次品率历史'],  # 零配件2的次品率历史
-    '成品次品率历史': decision_results_90['成品次品率历史']  # 成品的次品率历史
-})
+    # 绘制次品率随循环次数的变化
+    for i, (label, color) in enumerate(zip(labels, colors)):
+        for j, history in enumerate(defect_rate_histories):
+            cycles = range(1, len(history[label]) + 1)  # 循环次数
+            ax.plot(cycles, [j + 1] * len(cycles), history[label], color=color, marker='o')  # 绘制3D曲线
 
-# 输出次品率历史
-print("\n95%置信度下的次品率历史：")
-for index, row in defect_rate_results_95.iterrows():  # 遍历95%置信度的次品率历史
-    print(f"\n情况 {index + 1} 的次品率历史：")  # 打印情况编号
-    print(f"零配件1次品率历史: {row['零配件1次品率历史']}")  # 打印零配件1的次品率历史
-    print(f"零配件2次品率历史: {row['零配件2次品率历史']}")  # 打印零配件2的次品率历史
-    print(f"成品次品率历史: {row['成品次品率历史']}")  # 打印成品的次品率历史
+    # 设置轴标签
+    ax.set_xlabel('循环次数')  # X轴标签
+    ax.set_ylabel('情况编号')  # Y轴标签
+    ax.set_zlabel('次品率')  # Z轴标签
+    ax.set_title(title)  # 图表标题
 
-print("\n90%置信度下的次品率历史：")
-for index, row in defect_rate_results_90.iterrows():  # 遍历90%置信度的次品率历史
-    print(f"\n情况 {index + 1} 的次品率历史：")  # 打印情况编号
-    print(f"零配件1次品率历史: {row['零配件1次品率历史']}")  # 打印零配件1的次品率历史
-    print(f"零配件2次品率历史: {row['零配件2次品率历史']}")  # 打印零配件2的次品率历史
-    print(f"成品次品率历史: {row['成品次品率历史']}")  # 打印成品的次品率历史
+    # 手动设置图例，确保颜色正确
+    red_line = plt.Line2D([0], [0], color='r', marker='o', linestyle='-', label='零配件1次品率 (红)')  # 零配件1图例
+    green_line = plt.Line2D([0], [0], color='g', marker='o', linestyle='-', label='零配件2次品率 (绿)')  # 零配件2图例
+    blue_line = plt.Line2D([0], [0], color='b', marker='o', linestyle='-', label='成品次品率 (蓝)')  # 成品图例
+    ax.legend(handles=[red_line, green_line, blue_line])  # 添加图例
 
+    plt.show()  # 显示图表
+
+# 生成 3D 图表（95% 置信度）
+defect_rate_histories_95 = collect_defect_rate_histories(decision_results_95)  # 收集95%置信度下的次品率历史
+plot_defect_rate_3d(defect_rate_histories_95, '95% 置信度下的次品率历史（3D）')  # 绘制3D图表
+
+# 生成 3D 图表（90% 置信度）
+defect_rate_histories_90 = collect_defect_rate_histories(decision_results_90)  # 收集90%置信度下的次品率历史
+plot_defect_rate_3d(defect_rate_histories_90, '90% 置信度下的次品率历史（3D）')  # 绘制3D图表
